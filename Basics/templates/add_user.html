@@ -1,0 +1,39 @@
+{% extends 'base.html' %}
+
+
+{% block content %}
+    {% for message in get_flashed_messages() %}
+
+    {{ message }}
+
+    {% endfor %}
+
+        {% if name %}
+            <h1>User => {{ name }} <= Added Successfully</h1>
+            <br>
+            <div id="testJs"></div>
+        {% else %}
+            <h1>What's Your Name</h1>
+            <br>
+            <form method="post">
+                {{ form.hidden_tag() }} <!-- csrf token -->
+
+                {{ form.name.label(class="form-label") }}
+                {{ form.name(class="form-control") }}
+                <br>
+                {{ form.email.label(class="form-label") }}
+                {{ form.email(class="form-control") }}
+                <br>
+                {{ form.favorite_color.label(class="form-label") }}
+                {{ form.favorite_color(class="form-control") }}
+                <br>
+                {{ form.submit(class="btn btn-primary") }}
+            </form>
+
+            <br><br><br>
+            {% for user in myUsers %}
+                <p>{{user.id}}. <a href="{{url_for('update_user', id=user.id)}}">{{user.name}}</a> - {{ user.email }}</p>
+            {% endfor %}
+        {% endif %}
+{% endblock content %}
+    

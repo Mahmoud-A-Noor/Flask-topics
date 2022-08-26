@@ -1,0 +1,39 @@
+{% extends 'base.html' %}
+
+
+{% block content %}
+    {% for message in get_flashed_messages() %}
+
+    {{ message }}
+
+    {% endfor %}
+
+        {% if name %}
+            <h1>Update User</h1>
+            <br>
+            <div id="testJs"></div>
+        {% else %}
+            <h1>Update User</h1>
+            <br>
+            <form method="post">
+                {{ form.hidden_tag() }} <!-- csrf token -->
+
+                {{ form.name.label(class="form-label") }}
+                {{ form.name(class="form-control", value=user.name) }}
+                <br>
+                {{ form.email.label(class="form-label") }}
+                {{ form.email(class="form-control", value=user.email) }}
+                <br>
+                {{ form.favorite_color.label(class="form-label") }}
+                {{ form.favorite_color(class="form-control", value=user.favorite_color) }}
+                <br>
+                {{ form.submit(class="btn btn-primary") }}
+            </form>
+
+            <br><br><br>
+            {% for user in myUsers %}
+                <p>{{ user }}</p>
+            {% endfor %}
+        {% endif %}
+{% endblock content %}
+    

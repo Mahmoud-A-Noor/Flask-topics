@@ -1,0 +1,1 @@
+document.getElementById("testJs").innerHTML = "This Text is Written By Js";
