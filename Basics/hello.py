@@ -1,15 +1,18 @@
-from email.headerregistry import Address
-from msilib.sequence import tables
 from flask import Flask, render_template, flash, request, redirect, url_for
 from flask_wtf import FlaskForm
 from wtforms import StringField, SubmitField, PasswordField, BooleanField, ValidationError
-from wtforms.validators import DataRequired, EqualTo, Length
+from wtforms.validators import DataRequired, EqualTo, Length 
 from wtforms.widgets import TextArea
 from flask_sqlalchemy import SQLAlchemy
 from flask_migrate import Migrate # for database migration (commit changes when editing the db)
 from datetime import datetime
 from werkzeug.security import generate_password_hash, check_password_hash
 from flask_login import LoginManager, UserMixin, login_user, login_required, logout_user, current_user ### for authentication porpuses
+from flask_ckeditor import CKEditor, CKEditorField
+from flask_wtf.file import FileField, FileAllowed, FileRequired
+from werkzeug.utils import secure_filename
+from uuid import uuid4
+import os
 
 ### run flask app ###
 # in terminal: 
@@ -59,7 +62,10 @@ def form():
         return render_template("welcomeForm.html", name=name)
     return render_template('welcomeForm.html', form=form) ### make sure to pass ALL and ONLY used/required parameters otherwise page will not be rendered as expected and no error will appear ###
 
-#################################### Database ############################################33
+
+
+####################################################################################################
+#################################### Database ######################################################
 
 ### Add SQLite Database ###
 app.config["SQLALCHEMY_DATABASE_URI"] = "sqlite:///users.db"
@@ -179,14 +185,137 @@ def delete_user(id):
         return render_template('delete_user.html', form=form, user=user, id=user.id)
 
 
-#################################### return Json for API ############################################33
 
-@app.route('/api/today_datetime', methods=['GET'])
-def api_today_datetime():
-    return {"datetime": datetime.now()}
-    ### just return a map and flask will automatically covert it to json ###
+####################################################################################################
+#################################### DB relationships ##############################################
 
-#################################### authentecation ############################################33
+######### One-To-One #########
+
+class Parent(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    name = db.Column(db.String(50), nullable=False)
+    child = db.relationship("Child", backref="parent", uselist=False) ### backref is used to access the parent object from the child object ###
+    ### uselist=False means that there is only one child per parent ###
+
+class Child(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    name = db.Column(db.String(50), nullable=False)
+    parent_id = db.Column(db.Integer, db.ForeignKey("parent.id"), nullable=False, unique=True)
+
+    def __str__(self):
+        return f"{self.id}.  {self.name} - {self.parent_id}"
+
+@app.route('/test_OTO_relationship', methods=['GET'])
+def test_OTO_relationship():
+
+    ### used to delete any existent Parent or Child ###
+    # db.session.query(Parent).delete()
+    # db.session.query(Child).delete()
+
+    parent1 = Parent(name="Parent 1")
+    child1 = Child(name="Child 1", parent=parent1)
+    parent2 = Parent(name="Parent 2")
+    child2 = Child(name="Child 2", parent=parent2)
+    parent3 = Parent(name="Parent 3")
+    child3 = Child(name="Child 3", parent=parent3)
+    db.session.add_all([parent1, parent2, parent3, child1, child2, child3])
+    db.session.commit()
+    return render_template('DB_relationships/test_OTO_relationship.html', parents=Parent.query.all())
+
+
+######### One-To-Many #########
+
+class Post(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    title = db.Column(db.String(100))
+    content = db.Column(db.Text)
+    comments = db.relationship('Comment', backref='mypost', lazy=True) ### lazy=True is used to load the data only when it is needed ###
+
+class Comment(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    content = db.Column(db.Text)
+    post_id = db.Column(db.Integer, db.ForeignKey('post.id'))
+
+
+@app.route('/test_OTM_relationship', methods=['GET'])
+def test_OTM_relationship():
+
+    ### used to delete any existent posts or comments ###
+    # db.session.query(Post).delete()
+    # db.session.query(Comment).delete()
+
+    post1 = Post(title='Post The First', content='Content for the first post')
+    post2 = Post(title='Post The Second', content='Content for the Second post')
+    post3 = Post(title='Post The Third', content='Content for the third post')
+
+    ### you can send either a post object or a post id ###
+    comment1 = Comment(content='Comment for the first post', mypost=post1)
+    comment2 = Comment(content='Comment for the second post', mypost=post2)
+    comment3 = Comment(content='Another comment for the second post', post_id=2)
+    comment4 = Comment(content='Another comment for the first post', post_id=1)
+
+    
+
+    db.session.add_all([post1, post2, post3])
+    db.session.add_all([comment1, comment2, comment3, comment4])
+    ### you can add all objects in one line ###
+    # db.session.add_all([post1, post2, post3, comment1, comment2, comment3, comment4])
+
+    db.session.commit()
+    return render_template('DB_relationships/test_OTM_relationship.html', posts=Post.query.all())
+
+
+
+######### Many-To-Many #########
+
+user_channel = db.Table('user_channel',
+    db.Column('follower_id', db.Integer, db.ForeignKey('follower.id')),
+    db.Column('channel_id', db.Integer, db.ForeignKey('channel.id'))
+) ### this will create another table containing the primary key of both tables Follower and Channel ###
+
+
+class Follower(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    name = db.Column(db.String(20))
+    following = db.relationship('Channel', secondary=user_channel, backref='followers')
+
+
+class Channel(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    name = db.Column(db.String(20))
+
+    def __str__(self) -> str:
+        return self.name + "==>" + str(self.id)
+
+
+@app.route('/test_MTM_relationship', methods=['GET'])
+def test_MTM_relationship():
+
+    ### drops and create all tables ###
+    # db.drop_all()
+    # db.create_all()
+
+    follower1 = Follower(name='Follower 1')
+    follower2 = Follower(name='Follower 2')
+    follower3 = Follower(name='Follower 3')
+    channel1 = Channel(name='Channel 1')
+    channel2 = Channel(name='Channel 2')
+    channel3 = Channel(name='Channel 3')
+    follower1.following.append(channel1)
+    follower1.following.append(channel2)
+    follower2.following.append(channel1)
+    follower2.following.append(channel3)
+    follower3.following.append(channel2)
+    follower3.following.append(channel3)
+    db.session.add_all([follower1, follower2, follower3, channel1, channel2, channel3])
+    db.session.commit()
+    user_channel_data = db.session.query(Follower.name, Channel.name).join(Channel, Follower.following).all() ### get all the data from user_channel table ###
+    return render_template('DB_relationships/test_MTM_relationship.html', followers=Follower.query.all(), user_channel_data=user_channel_data)
+
+
+
+####################################################################################################
+#################################### authentecation ################################################
 
 ### initializing login manager ###
 login_manager = LoginManager()
@@ -295,99 +424,129 @@ def show_users():
     return render_template('authentication/show_users.html', users=users)
 
 
-#################################### DB relationships ############################################33
 
-######### One-To-One #########
+####################################################################################################
+#################################### return Json for API ##############################################
+
+@app.route('/api/today_datetime', methods=['GET'])
+def api_today_datetime():
+    return {"datetime": datetime.now()}
+    ### just return a map and flask will automatically covert it to json ###
 
 
 
+####################################################################################################
+#################################### Pagination ##############################################
 
-######### One-To-Many #########
-
-class Post(db.Model):
+class Topics(db.Model):
     id = db.Column(db.Integer, primary_key=True)
-    title = db.Column(db.String(100))
-    content = db.Column(db.Text)
-    comments = db.relationship('Comment', backref='mypost', lazy=True) ### lazy=True is used to load the data only when it is needed ###
-    ### mypost is a dummy name used when you pass an object instead of id when creating a Comment  ###
-
-class Comment(db.Model):
-    id = db.Column(db.Integer, primary_key=True)
-    content = db.Column(db.Text)
-    post_id = db.Column(db.Integer, db.ForeignKey('post.id')) ### foreign key is used to link the tables ###
+    topic = db.Column(db.String(50), nullable=False)
+    def __str__(self):
+        return f"{self.id}.  {self.topic}"
 
 
-@app.route('/test_OTM_relationship', methods=['GET'])
-def test_OTM_relationship():
-    post1 = Post(title='Post The First', content='Content for the first post')
-    post2 = Post(title='Post The Second', content='Content for the Second post')
-    post3 = Post(title='Post The Third', content='Content for the third post')
+@app.route('/paginate/<int:page_num>', methods=['GET'])
+def paginate(page_num):
 
-    ### you can send either a post object or a post id ###
-    comment1 = Comment(content='Comment for the first post', mypost=post1)
-    comment2 = Comment(content='Comment for the second post', mypost=post2)
-    comment3 = Comment(content='Another comment for the second post', post_id=2)
-    comment4 = Comment(content='Another comment for the first post', post_id=1)
+    ### used to delete any existent Topic ###
+    db.session.query(Topics).delete()
 
-    ### used to delete any existent pot or comment ###
-    # db.session.query(Post).delete()
-    # db.session.query(Comment).delete()
-
-    db.session.add_all([post1, post2, post3])
-    db.session.add_all([comment1, comment2, comment3, comment4])
-    ### you can add all objects in one line ###
-    # db.session.add_all([post1, post2, post3, comment1, comment2, comment3, comment4])
-
+    for i in range(1, 201):
+        topic = Topics(topic=f"Topic {i}")
+        db.session.add(topic)
     db.session.commit()
-    return render_template('DB_relationships/test_OTM_relationship.html', posts=Post.query.all())
+
+    topics = Topics.query.paginate(page = page_num, per_page = 20, error_out = True) 
+
+    return render_template('pagination.html', topics=topics)
 
 
 
-######### Many-To-Many #########
+####################################################################################################
+#################################### Global Variables ##############################################
 
-user_channel = db.Table('user_channel',
-    db.Column('follower_id', db.Integer, db.ForeignKey('follower.id')),
-    db.Column('channel_id', db.Integer, db.ForeignKey('channel.id'))
-) ### this will create another table containing the primary key of both tables Follower and Channel ###
+### return a map whose keys will be available as "global" variables in the template rendering phase. ###
+@app.context_processor
+def inject_Post_and_User():
+    return {'my_user':User(), 'myPost':Post()} ### you can use any object or pass any data ###
+    ### this is used to inject the Post and User classes into the templates ###
+
+### Template context processors work best when the data you want to use is relatively static, ###
+### say configuration information that is fixed at app initialisation, cached data or things that are easy to programatically generate ###
+
+### Because the processor is called on every render call you want to make sure it is either fast and efficient or necessary. ###
+
+### Commonly you use it for information that is needed on every page ###
 
 
-class Follower(db.Model):
+
+########################################################################################################
+#################################### Add Rich Text Editor ##############################################
+
+### check usage from ###
+### https://flask-ckeditor.readthedocs.io/en/latest/basic.html ###
+
+ckeditor = CKEditor(app)
+
+class Book(db.Model):
     id = db.Column(db.Integer, primary_key=True)
-    name = db.Column(db.String(20))
-    following = db.relationship('Channel', secondary=user_channel, backref='followers')
+    title = db.Column(db.String(50), nullable=False)
+    content = db.Column(db.Text, nullable=False)
+    def __str__(self):
+        return f"{self.id}.  {self.title}"
+
+class BookForm(FlaskForm):
+    title = StringField("Title", validators=[DataRequired()])
+    content = CKEditorField("Body", validators=[DataRequired()])
+    submit = SubmitField("Submit")
 
 
-class Channel(db.Model):
+@app.route('/add_book', methods=['GET', 'POST'])
+def add_book():
+    form = BookForm()
+    if form.validate_on_submit():
+        book = Book(title=form.title.data, content=form.content.data)
+        db.session.add(book)
+        db.session.commit() 
+        return form.content.data
+    return render_template('ckeditor.html', form=form)
+
+
+
+########################################################################################################
+#################################### Working with images ###############################################
+
+
+app.config['UPLOAD_FOLDER'] = "static/uploads"
+
+class Profile(db.Model):
     id = db.Column(db.Integer, primary_key=True)
-    name = db.Column(db.String(20))
+    name = db.Column(db.String(50), nullable=False)
+    image = db.Column(db.String(70), nullable=False)
+    def __str__(self):
+        return f"{self.id}.  {self.name}"
 
-    def __str__(self) -> str:
-        return self.name + "==>" + str(self.id)
-
-
-@app.route('/test_MTM_relationship', methods=['GET'])
-def test_MTM_relationship():
-
-    # db.drop_all()
-    # db.create_all()
-
-    follower1 = Follower(name='Follower 1')
-    follower2 = Follower(name='Follower 2')
-    follower3 = Follower(name='Follower 3')
-    channel1 = Channel(name='Channel 1')
-    channel2 = Channel(name='Channel 2')
-    channel3 = Channel(name='Channel 3')
-    follower1.following.append(channel1)
-    follower1.following.append(channel2)
-    follower2.following.append(channel1)
-    follower2.following.append(channel3)
-    follower3.following.append(channel2)
-    follower3.following.append(channel3)
-    db.session.add_all([follower1, follower2, follower3, channel1, channel2, channel3])
-    db.session.commit()
-    user_channel_data = db.session.query(Follower.name, Channel.name).join(Channel, Follower.following).all() ### get all the data from user_channel table ###
-    return render_template('DB_relationships/test_MTM_relationship.html', followers=Follower.query.all(), user_channel_data=user_channel_data)
+class ProfileForm(FlaskForm):
+    name = StringField("Name", validators=[DataRequired()])
+    image = FileField("Image", validators=[FileAllowed(['jpg', 'png']), FileRequired()])
+    submit = SubmitField("Submit")
 
 
-
-
+@app.route('/add_profile', methods=['GET', 'POST'])
+def add_profile():
+    form = ProfileForm()
+    if form.validate_on_submit():
+        image = form.image.data
+        ### make sure the image name is safe ###
+        image_name = secure_filename(image.filename)  
+        ### generate a random name for the image ###
+        image_name = str(uuid4()) + "_" + image_name  
+        ### save image ###
+        if not os.path.exists(app.config['UPLOAD_FOLDER']):
+            os.makedirs(app.config['UPLOAD_FOLDER'])
+        image.save(f"{app.config['UPLOAD_FOLDER']}/{image_name}")
+        profile = Profile(name=form.name.data, image=image_name)
+        db.session.add(profile)
+        db.session.commit()
+        return f"<img src={app.config['UPLOAD_FOLDER']}/{image_name}>"
+    return render_template('add_profile.html', form=form)

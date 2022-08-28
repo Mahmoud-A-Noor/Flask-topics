@@ -1,0 +1,19 @@
+{% extends 'base.html' %}
+
+
+{% block content %}
+    
+    <form method="post">
+        {{ form.hidden_tag() }}
+        {{ form.title(class="form-control", placeholder="Title") }}
+        <br>
+        {{ form.content(class="form-control", placeholder="Content") }}
+        <br>
+        {{ form.submit(class="btn btn-primary") }}
+    </form>
+        
+
+    {{ ckeditor.load() }}
+    {{ ckeditor.config(name='content') }}
+{% endblock content %}
+    

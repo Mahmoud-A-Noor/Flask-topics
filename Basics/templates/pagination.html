@@ -1,0 +1,32 @@
+{% extends 'base.html' %}
+
+
+{% block content %}
+    
+    
+    {% for topic in topics.items %}
+        {{topic}}
+        <br>
+    {% endfor %}
+    <br><br><br>
+    {% if topics.has_previous %}
+        <a href="{{ topics.previous_page_url }}">Previous</a>
+    {% endif %}
+    
+    
+    {% for page in topics.iter_pages() %}
+        {% if page != None %}
+            <a href="/paginate/{{page}}">{{page}} </a>
+        {% else %}
+            ....
+        {% endif %}
+    {% endfor %}
+        
+
+    {% if topics.has_next %}
+        <a href="{{ topics.next_page_url }}">Next</a>
+    {% endif %}
+    
+         
+{% endblock content %}
+    

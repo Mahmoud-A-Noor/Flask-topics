@@ -1,0 +1,12 @@
+{% extends 'base.html' %}
+
+
+{% block content %}
+    
+    {% for parent in parents %}
+        <h3>{{parent.name}}</h3>
+        <p>{{parent.child}}</p>
+    {% endfor %}
+        
+{% endblock content %}
+    

@@ -1,0 +1,15 @@
+{% extends 'base.html' %}
+
+{% block content %}
+
+    <form method="post" enctype="multipart/form-data">
+        {{ form.hidden_tag() }}
+        {{ form.name(class="form-control", placeholder="Title") }}
+        <br>
+        {{ form.image(class="form-control", placeholder="Content") }}
+        <br>
+        {{ form.submit(class="btn btn-primary") }}
+    </form>
+
+{% endblock %}
+
