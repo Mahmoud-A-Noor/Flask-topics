@@ -1,0 +1,12 @@
+{% extends 'base.html' %}
+
+
+{% block content %}
+    <h1> Welcome To Your Profile => {{current_user.user_name}} <= </h1>
+    <h2> Your Email is => {{current_user.email}} <= </h2>
+    <h2> Your ID is => {{current_user.id}} <= </h2>
+    <br><br><br>
+    <a href="{{ url_for('logout') }}">Logout</a>
+
+{% endblock content %}
+    

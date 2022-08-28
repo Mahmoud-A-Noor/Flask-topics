@@ -1,0 +1,21 @@
+{% extends 'base.html' %}
+
+
+{% block content %}
+    
+<h1>User Channel Data</h1>
+
+    {% for user_channel_record in user_channel_data %}
+        <p>{{user_channel_record}}</p>
+    {% endfor %}
+    <br><br><br>
+<h1>Followers Data</h1>
+    {% for follower in followers %}
+        <h3>{{follower.name}}</h3>
+            {% for channel in follower.following %}
+                <p>{{channel}}</p>
+            {% endfor %}
+    {% endfor %}
+        
+{% endblock content %}
+    
