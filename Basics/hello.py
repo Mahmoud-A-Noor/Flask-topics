@@ -80,31 +80,15 @@ class Users(db.Model):
     email = db.Column(db.String(50), nullable=False, unique=True)
     favorite_color = db.Column(db.String(50))
     date = db.Column(db.DateTime, default=datetime.utcnow)
-    password_hash = db.Column(db.String(256))
 
-    @property
-    def password(self):
-        raise AttributeError("Password is not a readable attribute")
-        ### using this approach we can set password attribute but we won't be able to access it ###
-    
-    # return self.password_hash # this will return the password hash which will be used to compare passwords
-    # return self.password # this will raise an error because we can only set password attribute, we can't access it
-    
-    @password.setter ### by doing this we create the password_hash on setting the password attribute value Ex. user2.password="my password" ###
-    def password(self, password):
-        self.password_hash = generate_password_hash(password, method='sha256') ### generate a password hash ###
-    
-    def verify_password(self, password):
-        return check_password_hash(self.password_hash, password) ### return True if the entered password has the same hash as the stored password ###
+    def __str__(self):
+        return f"{self.id} - {self.name} - {self.email} - {self.favorite_color}"
 
-
-    def __str__(self) -> str:
-        return f"{self.id}.  {self.name} - {self.email} - {self.favorite_color} - {self.password_hash}"
 
 ###### create tables ######
 # in termenal:
 #   1. winpty python
-#   2. from hello import db
+#   2. from yourFlaskFile import db
 #   3. db.create_all()
 ###########################
 ###### DB Migration (use the following commands to commit changes when editing the DB structure) #######
@@ -114,35 +98,32 @@ class Users(db.Model):
 #   3. flask --app yourFlaskFile.py db upgrade   (apply the migration to the database)
 ###########################
 
+
 ### create a form class ###
 class UsersForm(FlaskForm):
     name = StringField("Name", validators=[DataRequired()])
     email = StringField("Email", validators=[DataRequired()])
     favorite_color = StringField("Favorite Color")
-    password_hash = PasswordField("Password", validators=[DataRequired(), EqualTo("password_hash2", message="Passwords must match")])
-    password_hash2 = PasswordField("Confirm Password", validators=[DataRequired()]) ### this field dosn't exsists in DB, it is used just added in the form to confirm password ###
     submit = SubmitField("Submit")
-
-
 
 ### create add user route ###
 @app.route('/add/user', methods=['GET', 'POST'])
 def add_user():
-    name = None
     form = UsersForm()
     if form.validate_on_submit():
         user = Users.query.filter_by(email=form.email.data).first()
         if user is None:
-            user = Users(name=form.name.data, email=form.email.data, favorite_color=form.favorite_color.data, password=form.password_hash.data)
+            user = Users(name=form.name.data, email=form.email.data, favorite_color=form.favorite_color.data)
             db.session.add(user)
             db.session.commit() 
-        name = form.name.data
-        form.name.data = ""
-        form.email.data = ""
-        form.favorite_color.data = ""
-        form.password_hash.data = ""
-        form.password_hash2.data = ""
-        flash("User Added Successfully") ### flash a message ###
+            form.name.data = ""
+            form.email.data = ""
+            form.favorite_color.data = ""
+            flash("User Added Successfully") ### flash a message ###
+            return redirect(url_for("add_user")) ### redirect to the same page ###
+        else:
+            flash("User Already Exists")
+            return redirect(url_for("add_user")) ### redirect to the same page ###
     
     myUsers = Users.query.order_by(Users.date)
     return render_template('add_user.html', form=form, myUsers=myUsers)
@@ -315,7 +296,7 @@ def test_MTM_relationship():
 
 
 ####################################################################################################
-#################################### authentecation ################################################
+#################################### authentecation & authorization ################################################
 
 ### initializing login manager ###
 login_manager = LoginManager()
@@ -333,18 +314,20 @@ class User(db.Model, UserMixin): ### UserMixin is a class that comes with flask-
     user_name = db.Column(db.String(50), nullable=False)
     email = db.Column(db.String(50), nullable=False, unique=True)
     password_hash = db.Column(db.String(256))
-
+      
     @property
     def password(self):
         raise AttributeError("Password is not a readable attribute")
+        ### using this approach we can set password attribute but we won't be able to access it ###
+        ### return self.password_hash # this will return the password hash which will be used to compare passwords ###
+        ### return self.password # this will raise an error because we can only set password attribute, we can't access it ###
     
-    
-    @password.setter 
+    @password.setter ### by doing this we create the password_hash on setting the password attribute value Ex. user2.password="my password" ###
     def password(self, password):
-        self.password_hash = generate_password_hash(password, method='sha256') 
+        self.password_hash = generate_password_hash(password, method='sha256') ### generate a password hash ###
     
     def verify_password(self, password):
-        return check_password_hash(self.password_hash, password) 
+        return check_password_hash(self.password_hash, password) ### return True if the entered password has the same hash as the stored password ###
     
     def __str__(self):
         return f"{self.id}.  {self.user_name} - {self.email} - {self.password_hash}"
